@@ -88,14 +88,6 @@ sudo less /var/log/aide/aide.log
 sudo aide-accept
 ```
 
-On a host with LVM (the data disk), some versions of `aide-accept` fail
-with `File descriptor 9 (/run/aide-accept.lock) leaked on pvs invocation`.
-Until the host's `aide-accept` is fixed, accept with:
-
-```sh
-sudo env LVM_SUPPRESS_FD_WARNINGS=1 aide-accept
-```
-
 ## Reading the audit log
 
 ```sh
