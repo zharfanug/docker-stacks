@@ -1,0 +1,44 @@
+# Wazuh indexer configuration, rendered by deploy.sh into
+# /stacks/<STACK_NAME>/config/opensearch.yml (@NODE_NAME@ = STACK_NAME).
+# Edit this template, not the rendered file: deploy.sh overwrites it.
+network.host: "0.0.0.0"
+node.name: "@NODE_NAME@"
+cluster.name: "wazuh-cluster"
+path.data: /var/lib/wazuh-indexer
+path.logs: /var/log/wazuh-indexer
+discovery.type: single-node
+http.port: 9200
+transport.port: 9300
+compatibility.override_main_response_version: true
+
+# Keep the heap in RAM: the host has swap, a swapped-out heap stalls the JVM.
+# Needs the memlock ulimit in docker-compose.yml.
+bootstrap.memory_lock: true
+
+plugins.security.ssl.http.pemcert_filepath: /usr/share/wazuh-indexer/config/certs/indexer.pem
+plugins.security.ssl.http.pemkey_filepath: /usr/share/wazuh-indexer/config/certs/indexer-key.pem
+plugins.security.ssl.http.pemtrustedcas_filepath: /usr/share/wazuh-indexer/config/certs/root-ca.pem
+plugins.security.ssl.transport.pemcert_filepath: /usr/share/wazuh-indexer/config/certs/indexer.pem
+plugins.security.ssl.transport.pemkey_filepath: /usr/share/wazuh-indexer/config/certs/indexer-key.pem
+plugins.security.ssl.transport.pemtrustedcas_filepath: /usr/share/wazuh-indexer/config/certs/root-ca.pem
+plugins.security.ssl.http.enabled: true
+plugins.security.ssl.transport.enforce_hostname_verification: false
+plugins.security.ssl.transport.resolve_hostname: false
+plugins.security.authcz.admin_dn:
+- "CN=admin,OU=Wazuh,O=Wazuh,L=California,C=US"
+plugins.security.nodes_dn:
+- "CN=@NODE_NAME@,OU=Wazuh,O=Wazuh,L=California,C=US"
+plugins.security.check_snapshot_restore_write_privileges: true
+plugins.security.enable_snapshot_restore_privilege: true
+plugins.security.restapi.roles_enabled:
+- "all_access"
+- "security_rest_api_access"
+plugins.security.system_indices.enabled: true
+plugins.security.system_indices.indices: [".opendistro-alerting-config", ".opendistro-alerting-alert*", ".opendistro-anomaly-results*", ".opendistro-anomaly-detector*", ".opendistro-anomaly-checkpoints", ".opendistro-anomaly-detection-state", ".opendistro-reports-*", ".opendistro-notifications-*", ".opendistro-notebooks", ".opensearch-observability", ".opendistro-asynchronous-search-response*", ".replication-metadata-store"]
+# Loads internal_users.yml (and the rest of opensearch-security/) into the
+# security index on the first start only. Later changes: securityadmin.sh.
+plugins.security.allow_default_init_securityindex: true
+
+# Disk watermarks stay at the defaults (85 % / 90 % / 95 %): near a full
+# disk the indexer stops allocating, then makes indices read-only, instead
+# of failing writes at 100 %.

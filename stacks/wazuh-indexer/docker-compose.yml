@@ -1,0 +1,62 @@
+# Wazuh indexer, one node. deploy.sh copies this file and .env to
+# /stacks/<STACK_NAME>/ and runs it from there; all paths are relative to
+# that directory.
+name: ${STACK_NAME:?set STACK_NAME in .env}
+
+services:
+  indexer:
+    image: wazuh/wazuh-indexer:${WAZUH_VERSION:?set WAZUH_VERSION in .env}
+    container_name: ${STACK_NAME}
+    hostname: ${STACK_NAME}
+    restart: always
+    ports:
+      - "${INDEXER_BIND:-0.0.0.0}:${INDEXER_PORT:-9200}:9200"
+    # OPENSEARCH_JAVA_OPTS (heap), written by deploy.sh from INDEXER_HEAP.
+    # OpenSearch settings such as bootstrap.memory_lock can't be set in the
+    # environment: the 4.14 image ignores them (they are only read in
+    # OpenSearch's own "docker" distribution). They are in opensearch.yml.
+    env_file:
+      - ./config/${STACK_NAME}-jvm.env
+    # memlock: for bootstrap.memory_lock in opensearch.yml.
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    healthcheck:
+      # 401 without credentials means the REST API and its security layer are up.
+      test: ["CMD-SHELL", "curl -sk -o /dev/null -w '%{http_code}' https://localhost:9200/ | grep -qE '^(200|401)$'"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    volumes:
+      # nocopy: Docker would otherwise copy the image's folder (its files,
+      # owner and mode 0755) into the empty folder on first start.
+      - data:/var/lib/wazuh-indexer:nocopy
+      - ./config/certs/:/usr/share/wazuh-indexer/config/certs/:ro
+      - ./config/${STACK_NAME}-opensearch.yml:/usr/share/wazuh-indexer/config/opensearch.yml:ro
+      - ./config/${STACK_NAME}-internal_users.yml:/usr/share/wazuh-indexer/config/opensearch-security/internal_users.yml:ro
+      - logs:/var/log/wazuh-indexer:nocopy
+
+# Named volumes bound to folders in /stacks/<STACK_NAME>/, so the data and
+# logs sit on the data disk next to the rest of the instance. Compose does
+# not substitute variables in keys, so the keys are fixed and "name" carries
+# the instance name (Docker volumes <STACK_NAME>-data and <STACK_NAME>-logs).
+volumes:
+  data:
+    name: ${STACK_NAME}-data
+    driver: local
+    driver_opts:
+      type: "none"
+      o: "bind"
+      device: "/stacks/${STACK_NAME}/data"
+  logs:
+    name: ${STACK_NAME}-logs
+    driver: local
+    driver_opts:
+      type: "none"
+      o: "bind"
+      device: "/stacks/${STACK_NAME}/logs"
